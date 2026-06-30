@@ -12,7 +12,7 @@
 // Estrutura que mantém os ponteiros para os widgets necessários na execução da simulação
 struct AppWidgets {
     GtkWidget* main_window;
-    GtkWidget* label_arquivo;
+    GtkWidget* file_chooser_button;
     GtkWidget* entry_mem_fisica;
     GtkWidget* entry_mem_virtual;
     GtkWidget* entry_tam_pagina;
@@ -50,41 +50,18 @@ static void ao_mudar_escalonador(GtkComboBox* combo, gpointer data) {
     }
 }
 
-// Callback executado ao clicar no botão de carregar CSV
-static void ao_selecionar_arquivo(GtkButton* botao, gpointer data) {
-    AppWidgets* widgets = static_cast<AppWidgets*>(data);
-    
-    GtkWidget* dialog = gtk_file_chooser_dialog_new("Selecionar Arquivo de Processos (CSV)",
-                                                    GTK_WINDOW(widgets->main_window),
-                                                    GTK_FILE_CHOOSER_ACTION_OPEN,
-                                                    "_Cancelar", GTK_RESPONSE_CANCEL,
-                                                    "_Abrir", GTK_RESPONSE_ACCEPT,
-                                                    NULL);
-
-    // Configura filtro para arquivos .csv
-    GtkFileFilter* filtro = gtk_file_filter_new();
-    gtk_file_filter_set_name(filtro, "Arquivos CSV (*.csv)");
-    gtk_file_filter_add_pattern(filtro, "*.csv");
-    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filtro);
-
-    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
-        char* caminho = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-        gtk_label_set_text(GTK_LABEL(widgets->label_arquivo), caminho);
-        g_free(caminho);
-    }
-    
-    gtk_widget_destroy(dialog);
-}
-
 // Callback principal acionado ao clicar no botão "Simular"
 static void ao_clicar_simular(GtkButton* botao, gpointer data) {
     AppWidgets* widgets = static_cast<AppWidgets*>(data);
 
     // 1. Obter caminho do CSV
-    const char* texto_caminho = gtk_label_get_text(GTK_LABEL(widgets->label_arquivo));
-    std::string caminho_csv = (texto_caminho != nullptr) ? texto_caminho : "";
+    char* caminho = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(widgets->file_chooser_button));
+    std::string caminho_csv = (caminho != nullptr) ? caminho : "";
+    if (caminho != nullptr) {
+        g_free(caminho);
+    }
 
-    if (caminho_csv.empty() || caminho_csv == "Nenhum arquivo selecionado") {
+    if (caminho_csv.empty()) {
         mostrar_mensagem(GTK_WINDOW(widgets->main_window), "Erro de Arquivo", "Por favor, selecione um arquivo CSV contendo os processos.");
         return;
     }
@@ -178,19 +155,43 @@ static void ao_destruir_janela(GtkWidget* widget, gpointer data) {
     gtk_main_quit();
 }
 
-// Aplica estilo CSS customizado (Catppuccin Dark) para a janela
+// Aplica estilo CSS customizado (tema claro e limpo) para a janela
 static void aplicar_estilo_css() {
     GtkCssProvider* provider = gtk_css_provider_new();
     gtk_css_provider_load_from_data(provider,
-        "window { background-color: #1e1e2e; color: #cdd6f4; font-family: 'Segoe UI', sans-serif; }\n"
-        "grid { padding: 15px; }\n"
-        "label { font-weight: bold; padding: 4px; color: #cdd6f4; font-size: 10pt; }\n"
-        "button { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 8px 16px; margin: 4px; font-weight: bold; }\n"
-        "button:hover { background-color: #45475a; color: #f5c2e7; }\n"
-        "entry { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 6px; font-size: 10pt; }\n"
-        "combobox { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; }\n"
-        "textview text { background-color: #11111b; color: #a6e3a1; font-family: 'Consolas', 'Courier New', monospace; font-size: 11pt; padding: 12px; }\n"
-        "scrolledwindow { border: 1px solid #45475a; border-radius: 6px; }\n",
+        /* Janela e fundo geral */
+        "window { background-color: #f0f2f5; color: #1a1a2e; font-family: 'Segoe UI', 'Ubuntu', 'DejaVu Sans', sans-serif; }\n"
+
+        /* Labels: texto escuro, legível */
+        "label { color: #333344; font-size: 10pt; padding: 2px 4px; }\n"
+        "#label_titulo { color: #1a56db; font-size: 16pt; font-weight: bold; padding: 8px 4px; }\n"
+        "#label_secao { color: #555566; font-size: 9pt; font-weight: bold; text-transform: uppercase; padding: 6px 4px 2px 4px; }\n"
+
+        /* Caixas de entrada */
+        "entry { background-color: #ffffff; color: #1a1a2e; border: 1px solid #c8ccd4; border-radius: 6px; padding: 6px 10px; font-size: 10pt; }\n"
+        "entry:focus { border-color: #1a56db; box-shadow: 0 0 0 2px rgba(26,86,219,0.15); }\n"
+
+        /* Dropdowns */
+        "combobox button { background-color: #ffffff; color: #1a1a2e; border: 1px solid #c8ccd4; border-radius: 6px; padding: 5px 10px; font-size: 10pt; }\n"
+
+        /* Botão secundário (Selecionar CSV) */
+        "button { background: #ffffff; color: #1a1a2e; border: 1px solid #c8ccd4; border-radius: 6px; padding: 7px 16px; font-size: 10pt; }\n"
+        "button:hover { background: #e8eaf0; border-color: #aab0be; }\n"
+
+        /* Botão principal de Simular */
+        "#btn_simular, #btn_simular label { background-color: #1a56db; color: #ffffff; border: none; border-radius: 8px; padding: 10px 24px; font-size: 11pt; font-weight: bold; }\n"
+        "#btn_simular:hover, #btn_simular:hover label { background-color: #1648c0; color: #ffffff; }\n"
+        "#btn_simular:active, #btn_simular:active label { background-color: #1240b0; color: #ffffff; }\n"
+
+        /* Área do relatório */
+        "textview { background-color: #ffffff; }\n"
+        "textview text { background-color: #ffffff; color: #1a1a2e; font-family: 'Consolas', 'DejaVu Sans Mono', 'Courier New', monospace; font-size: 10pt; padding: 12px; }\n"
+
+        /* ScrolledWindow com borda discreta */
+        "scrolledwindow { border: 1px solid #c8ccd4; border-radius: 8px; background-color: #ffffff; }\n"
+
+        /* Separador visual entre seções */
+        "separator { color: #dde0e8; margin: 4px 0; }\n",
         -1, NULL);
     gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
                                                GTK_STYLE_PROVIDER(provider),
@@ -204,41 +205,63 @@ void inicializar_interface(int argc, char* argv[]) {
 
     AppWidgets* widgets = new AppWidgets();
 
-    // Criação da Janela Principal
+    // Criação da Janela Principal (ajustada para layout horizontal mais compacto)
     widgets->main_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(widgets->main_window), "Simulador de SO - CPU & Memória Virtual");
-    gtk_window_set_default_size(GTK_WINDOW(widgets->main_window), 850, 650);
+    gtk_window_set_title(GTK_WINDOW(widgets->main_window), "Simulador de Sistemas Operacionais");
+    gtk_window_set_default_size(GTK_WINDOW(widgets->main_window), 900, 520);
     gtk_window_set_position(GTK_WINDOW(widgets->main_window), GTK_WIN_POS_CENTER);
 
-    // Box vertical que contém todo o layout
+    // Box vertical principal
     GtkWidget* main_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
-    gtk_container_set_border_width(GTK_CONTAINER(main_box), 15);
+    gtk_container_set_border_width(GTK_CONTAINER(main_box), 12);
     gtk_container_add(GTK_CONTAINER(widgets->main_window), main_box);
 
     // Título Principal
-    GtkWidget* label_titulo = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(label_titulo), "<span size='xx-large' weight='bold' foreground='#cba6f7'>Simulador de Sistemas Operacionais</span>");
-    gtk_box_pack_start(GTK_BOX(main_box), label_titulo, FALSE, FALSE, 5);
+    GtkWidget* label_titulo = gtk_label_new("Simulador de Sistemas Operacionais");
+    gtk_widget_set_name(label_titulo, "label_titulo");
+    gtk_label_set_xalign(GTK_LABEL(label_titulo), 0.0);
+    gtk_box_pack_start(GTK_BOX(main_box), label_titulo, FALSE, FALSE, 2);
+
+    // Separador após o título
+    GtkWidget* sep1 = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
+    gtk_box_pack_start(GTK_BOX(main_box), sep1, FALSE, FALSE, 2);
+
+    // Box horizontal para dividir Esquerda (Controles) e Direita (Relatório)
+    GtkWidget* panel_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 15);
+    gtk_box_pack_start(GTK_BOX(main_box), panel_box, TRUE, TRUE, 0);
+
+    // ================= PAINEL ESQUERDO (Parâmetros) =================
+    GtkWidget* left_panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    gtk_box_pack_start(GTK_BOX(panel_box), left_panel, FALSE, FALSE, 0);
 
     // Grid para organizar os parâmetros
     GtkWidget* grid_parametros = gtk_grid_new();
-    gtk_grid_set_row_spacing(GTK_GRID(grid_parametros), 10);
-    gtk_grid_set_column_spacing(GTK_GRID(grid_parametros), 15);
-    gtk_box_pack_start(GTK_BOX(main_box), grid_parametros, FALSE, FALSE, 5);
+    gtk_grid_set_row_spacing(GTK_GRID(grid_parametros), 8);
+    gtk_grid_set_column_spacing(GTK_GRID(grid_parametros), 12);
+    gtk_box_pack_start(GTK_BOX(left_panel), grid_parametros, FALSE, FALSE, 0);
 
-    // 1. Seletor de Arquivos CSV
-    GtkWidget* btn_arquivo = gtk_button_new_with_label("Selecionar CSV...");
-    widgets->label_arquivo = gtk_label_new("Nenhum arquivo selecionado");
-    gtk_label_set_xalign(GTK_LABEL(widgets->label_arquivo), 0.0);
+    // 1. Seletor de Arquivos CSV (usando GtkFileChooserButton nativo e compacto)
+    GtkWidget* lbl_arquivo = gtk_label_new("Arquivo CSV:");
+    gtk_label_set_xalign(GTK_LABEL(lbl_arquivo), 0.0);
+    widgets->file_chooser_button = gtk_file_chooser_button_new("Selecionar arquivo...", GTK_FILE_CHOOSER_ACTION_OPEN);
+    gtk_widget_set_halign(widgets->file_chooser_button, GTK_ALIGN_START);
     
-    gtk_grid_attach(GTK_GRID(grid_parametros), btn_arquivo, 0, 0, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid_parametros), widgets->label_arquivo, 1, 0, 1, 1);
+    // Configura filtro para arquivos .csv
+    GtkFileFilter* filtro = gtk_file_filter_new();
+    gtk_file_filter_set_name(filtro, "Arquivos CSV (*.csv)");
+    gtk_file_filter_add_pattern(filtro, "*.csv");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(widgets->file_chooser_button), filtro);
+
+    gtk_grid_attach(GTK_GRID(grid_parametros), lbl_arquivo, 0, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid_parametros), widgets->file_chooser_button, 1, 0, 1, 1);
 
     // 2. Parâmetros de Memória Física
     GtkWidget* lbl_mem_fisica = gtk_label_new("Memória Física Total (MB):");
     gtk_label_set_xalign(GTK_LABEL(lbl_mem_fisica), 0.0);
     widgets->entry_mem_fisica = gtk_entry_new();
     gtk_entry_set_text(GTK_ENTRY(widgets->entry_mem_fisica), "256");
+    gtk_entry_set_width_chars(GTK_ENTRY(widgets->entry_mem_fisica), 10);
+    gtk_widget_set_halign(widgets->entry_mem_fisica, GTK_ALIGN_START);
     
     gtk_grid_attach(GTK_GRID(grid_parametros), lbl_mem_fisica, 0, 1, 1, 1);
     gtk_grid_attach(GTK_GRID(grid_parametros), widgets->entry_mem_fisica, 1, 1, 1, 1);
@@ -248,6 +271,8 @@ void inicializar_interface(int argc, char* argv[]) {
     gtk_label_set_xalign(GTK_LABEL(lbl_mem_virtual), 0.0);
     widgets->entry_mem_virtual = gtk_entry_new();
     gtk_entry_set_text(GTK_ENTRY(widgets->entry_mem_virtual), "1024");
+    gtk_entry_set_width_chars(GTK_ENTRY(widgets->entry_mem_virtual), 10);
+    gtk_widget_set_halign(widgets->entry_mem_virtual, GTK_ALIGN_START);
     
     gtk_grid_attach(GTK_GRID(grid_parametros), lbl_mem_virtual, 0, 2, 1, 1);
     gtk_grid_attach(GTK_GRID(grid_parametros), widgets->entry_mem_virtual, 1, 2, 1, 1);
@@ -257,6 +282,8 @@ void inicializar_interface(int argc, char* argv[]) {
     gtk_label_set_xalign(GTK_LABEL(lbl_tam_pagina), 0.0);
     widgets->entry_tam_pagina = gtk_entry_new();
     gtk_entry_set_text(GTK_ENTRY(widgets->entry_tam_pagina), "4");
+    gtk_entry_set_width_chars(GTK_ENTRY(widgets->entry_tam_pagina), 10);
+    gtk_widget_set_halign(widgets->entry_tam_pagina, GTK_ALIGN_START);
     
     gtk_grid_attach(GTK_GRID(grid_parametros), lbl_tam_pagina, 0, 3, 1, 1);
     gtk_grid_attach(GTK_GRID(grid_parametros), widgets->entry_tam_pagina, 1, 3, 1, 1);
@@ -269,6 +296,7 @@ void inicializar_interface(int argc, char* argv[]) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(widgets->combo_escalonador), "SJF Preemptivo");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(widgets->combo_escalonador), "Prioridade Preemptiva");
     gtk_combo_box_set_active(GTK_COMBO_BOX(widgets->combo_escalonador), 0);
+    gtk_widget_set_halign(widgets->combo_escalonador, GTK_ALIGN_START);
     
     gtk_grid_attach(GTK_GRID(grid_parametros), lbl_escalonador, 0, 4, 1, 1);
     gtk_grid_attach(GTK_GRID(grid_parametros), widgets->combo_escalonador, 1, 4, 1, 1);
@@ -276,10 +304,13 @@ void inicializar_interface(int argc, char* argv[]) {
     // 6. Contêiner e entrada para o Quantum (Apenas visível no Round-Robin)
     widgets->box_quantum_container = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     GtkWidget* lbl_quantum = gtk_label_new("Quantum (ticks):");
+    gtk_label_set_xalign(GTK_LABEL(lbl_quantum), 0.0);
     widgets->entry_quantum = gtk_entry_new();
     gtk_entry_set_text(GTK_ENTRY(widgets->entry_quantum), "2");
+    gtk_entry_set_width_chars(GTK_ENTRY(widgets->entry_quantum), 10);
+    gtk_widget_set_halign(widgets->entry_quantum, GTK_ALIGN_START);
     gtk_box_pack_start(GTK_BOX(widgets->box_quantum_container), lbl_quantum, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(widgets->box_quantum_container), widgets->entry_quantum, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(widgets->box_quantum_container), widgets->entry_quantum, FALSE, FALSE, 0);
     
     gtk_grid_attach(GTK_GRID(grid_parametros), widgets->box_quantum_container, 0, 5, 2, 1);
 
@@ -291,23 +322,34 @@ void inicializar_interface(int argc, char* argv[]) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(widgets->combo_substituicao), "LRU");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(widgets->combo_substituicao), "Ótimo");
     gtk_combo_box_set_active(GTK_COMBO_BOX(widgets->combo_substituicao), 0);
+    gtk_widget_set_halign(widgets->combo_substituicao, GTK_ALIGN_START);
     
     gtk_grid_attach(GTK_GRID(grid_parametros), lbl_substituicao, 0, 6, 1, 1);
     gtk_grid_attach(GTK_GRID(grid_parametros), widgets->combo_substituicao, 1, 6, 1, 1);
 
     // Configuração dos Sinais da Interface
     g_signal_connect(widgets->combo_escalonador, "changed", G_CALLBACK(ao_mudar_escalonador), widgets->box_quantum_container);
-    g_signal_connect(btn_arquivo, "clicked", G_CALLBACK(ao_selecionar_arquivo), widgets);
 
-    // 8. Botão Simular
-    GtkWidget* btn_simular = gtk_button_new_with_label("Simular Execução");
+    // Separador antes do botão Simular
+    GtkWidget* sep2 = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
+    gtk_box_pack_start(GTK_BOX(left_panel), sep2, FALSE, FALSE, 4);
+
+    // 8. Botão Simular (agora esticado para preencher o painel esquerdo)
+    GtkWidget* btn_simular = gtk_button_new_with_label("▶  Simular Execução");
+    gtk_widget_set_name(btn_simular, "btn_simular");
+    gtk_widget_set_halign(btn_simular, GTK_ALIGN_FILL);
     g_signal_connect(btn_simular, "clicked", G_CALLBACK(ao_clicar_simular), widgets);
-    gtk_box_pack_start(GTK_BOX(main_box), btn_simular, FALSE, FALSE, 5);
+    gtk_box_pack_start(GTK_BOX(left_panel), btn_simular, FALSE, FALSE, 2);
+
+    // ================= PAINEL DIREITO (Relatório) =================
+    GtkWidget* right_panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+    gtk_box_pack_start(GTK_BOX(panel_box), right_panel, TRUE, TRUE, 0);
 
     // 9. Área do Relatório
-    GtkWidget* label_relatorio_header = gtk_label_new("Relatório de Simulação:");
+    GtkWidget* label_relatorio_header = gtk_label_new("Relatório de Simulação");
+    gtk_widget_set_name(label_relatorio_header, "label_secao");
     gtk_label_set_xalign(GTK_LABEL(label_relatorio_header), 0.0);
-    gtk_box_pack_start(GTK_BOX(main_box), label_relatorio_header, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(right_panel), label_relatorio_header, FALSE, FALSE, 2);
 
     widgets->text_view_relatorio = gtk_text_view_new();
     gtk_text_view_set_editable(GTK_TEXT_VIEW(widgets->text_view_relatorio), FALSE);
@@ -316,7 +358,7 @@ void inicializar_interface(int argc, char* argv[]) {
     GtkWidget* scrolled_window = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled_window), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
     gtk_container_add(GTK_CONTAINER(scrolled_window), widgets->text_view_relatorio);
-    gtk_box_pack_start(GTK_BOX(main_box), scrolled_window, TRUE, TRUE, 5);
+    gtk_box_pack_start(GTK_BOX(right_panel), scrolled_window, TRUE, TRUE, 5);
 
     // Sinal de encerramento da aplicação
     g_signal_connect(widgets->main_window, "destroy", G_CALLBACK(ao_destruir_janela), widgets);

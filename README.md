@@ -100,11 +100,10 @@ make
 
 ## 👥 Integrantes
 
-| Nome | RA |
-|------|----|
-|      |    |
-|      |    |
-|      |    |
+| Nome                      | RA       |
+|---------------------------|----------|
+| Eduardo Akutagawa Hayashi | a2725991 |
+| Leonardo Simões Laraya    | a2703688 |
 
 ---
 
