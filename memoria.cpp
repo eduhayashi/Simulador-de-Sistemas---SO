@@ -14,6 +14,12 @@ struct Pagina {
     }
 };
 
+// Entrada na Tabela de Páginas de um processo (Demand Paging)
+struct EntradaTabelaPagina {
+    int frame_fisico = -1;
+    bool presente = false;
+};
+
 // Função auxiliar que gera a sequência cronológica de acessos a páginas com base
 // na execução da CPU (linha do tempo do escalonador).
 //
@@ -102,34 +108,57 @@ int simular_fifo(int num_frames, int tamanho_pagina_mb,
     std::vector<Pagina> referencias = gerar_referencias_pagina(processos, linha_tempo, tamanho_pagina_mb);
     if (num_frames <= 0 || referencias.empty()) return 0;
 
+    // Inicializa a Tabela de Páginas de cada processo com o tamanho adequado (Demand Paging)
+    std::unordered_map<int, std::vector<EntradaTabelaPagina>> tabelas_paginas;
+    for (const auto& p : processos) {
+        int num_paginas = (p.memoria_mb + tamanho_pagina_mb - 1) / tamanho_pagina_mb;
+        if (num_paginas <= 0) num_paginas = 1;
+        tabelas_paginas[p.id] = std::vector<EntradaTabelaPagina>(num_paginas);
+    }
+
     std::vector<Pagina> frames;
     std::queue<Pagina> fila_fifo;
     int page_faults = 0;
 
     for (const auto& pag : referencias) {
-        // Verifica se a página já está mapeada em algum frame físico (Hit)
-        auto it = std::find(frames.begin(), frames.end(), pag);
-        if (it != frames.end()) {
+        int id_proc = pag.id_processo;
+        int num_pag = pag.numero_pagina;
+
+        // 1 & 2. CPU pede a página e consulta a tabela de páginas
+        if (tabelas_paginas[id_proc][num_pag].presente) {
+            // 3. Hit! No FIFO, não precisa fazer nada especial
             continue;
         }
 
-        // Ocorreu um Page Fault!
+        // 4. Se presente for false, ocorreu um Page Fault
         page_faults++;
 
+        // 5. Se houver espaço livre na RAM, aloque a página em um frame vazio e atualize a tabela
         if (frames.size() < static_cast<size_t>(num_frames)) {
+            int frame_idx = static_cast<int>(frames.size());
             frames.push_back(pag);
+            
+            tabelas_paginas[id_proc][num_pag].presente = true;
+            tabelas_paginas[id_proc][num_pag].frame_fisico = frame_idx;
+            
             fila_fifo.push(pag);
         } else {
-            // Remove a página mais antiga carregada na memória (FIFO)
+            // 6 & 7. RAM cheia: roda o algoritmo FIFO para escolher página vítima
             Pagina antiga = fila_fifo.front();
             fila_fifo.pop();
 
-            auto it_rem = std::find(frames.begin(), frames.end(), antiga);
-            if (it_rem != frames.end()) {
-                frames.erase(it_rem);
-            }
+            // Resgata o frame da vítima a partir de sua tabela de páginas
+            int victim_frame = tabelas_paginas[antiga.id_processo][antiga.numero_pagina].frame_fisico;
 
-            frames.push_back(pag);
+            // Marca a vítima como ausente da RAM
+            tabelas_paginas[antiga.id_processo][antiga.numero_pagina].presente = false;
+            tabelas_paginas[antiga.id_processo][antiga.numero_pagina].frame_fisico = -1;
+
+            // Insere a nova página no frame liberado e atualiza a sua tabela de páginas
+            frames[victim_frame] = pag;
+            tabelas_paginas[id_proc][num_pag].presente = true;
+            tabelas_paginas[id_proc][num_pag].frame_fisico = victim_frame;
+
             fila_fifo.push(pag);
         }
     }
@@ -144,30 +173,45 @@ int simular_lru(int num_frames, int tamanho_pagina_mb,
     std::vector<Pagina> referencias = gerar_referencias_pagina(processos, linha_tempo, tamanho_pagina_mb);
     if (num_frames <= 0 || referencias.empty()) return 0;
 
+    // Inicializa a Tabela de Páginas de cada processo com o tamanho adequado (Demand Paging)
+    std::unordered_map<int, std::vector<EntradaTabelaPagina>> tabelas_paginas;
+    for (const auto& p : processos) {
+        int num_paginas = (p.memoria_mb + tamanho_pagina_mb - 1) / tamanho_pagina_mb;
+        if (num_paginas <= 0) num_paginas = 1;
+        tabelas_paginas[p.id] = std::vector<EntradaTabelaPagina>(num_paginas);
+    }
+
     std::vector<Pagina> frames;
-    // Armazena o instante de tempo do último acesso correspondente a cada página no vetor de frames
+    // Armazena o instante de tempo do último acesso correspondente a cada frame físico
     std::vector<int> ultimo_acesso;
     int page_faults = 0;
 
     for (int t = 0; t < static_cast<int>(referencias.size()); ++t) {
         const auto& pag = referencias[t];
+        int id_proc = pag.id_processo;
+        int num_pag = pag.numero_pagina;
 
-        auto it = std::find(frames.begin(), frames.end(), pag);
-        if (it != frames.end()) {
-            // Hit! Atualiza o instante do último acesso
-            int idx = std::distance(frames.begin(), it);
-            ultimo_acesso[idx] = t;
+        // 1 & 2. CPU pede a página e consulta a tabela de páginas
+        if (tabelas_paginas[id_proc][num_pag].presente) {
+            // 3. Hit! Como é LRU, precisamos atualizar o tempo de último acesso daquele frame
+            int frame_idx = tabelas_paginas[id_proc][num_pag].frame_fisico;
+            ultimo_acesso[frame_idx] = t;
             continue;
         }
 
-        // Ocorreu um Page Fault!
+        // 4. Se presente for false, ocorreu um Page Fault
         page_faults++;
 
+        // 5. Se houver espaço livre na RAM, aloque a página em um frame vazio
         if (frames.size() < static_cast<size_t>(num_frames)) {
+            int frame_idx = static_cast<int>(frames.size());
             frames.push_back(pag);
             ultimo_acesso.push_back(t);
+
+            tabelas_paginas[id_proc][num_pag].presente = true;
+            tabelas_paginas[id_proc][num_pag].frame_fisico = frame_idx;
         } else {
-            // Procura a página menos recentemente usada (menor valor de instante de acesso)
+            // 6 & 7. RAM cheia: roda o algoritmo LRU para escolher página vítima
             int min_idx = 0;
             int min_t = ultimo_acesso[0];
             for (size_t i = 1; i < frames.size(); ++i) {
@@ -177,9 +221,18 @@ int simular_lru(int num_frames, int tamanho_pagina_mb,
                 }
             }
 
-            // Substitui a página selecionada pelo LRU
+            Pagina antiga = frames[min_idx];
+
+            // Define presente = false e frame_fisico = -1 na tabela do dono da vítima
+            tabelas_paginas[antiga.id_processo][antiga.numero_pagina].presente = false;
+            tabelas_paginas[antiga.id_processo][antiga.numero_pagina].frame_fisico = -1;
+
+            // Insere a nova página no frame do LRU e atualiza a sua tabela de páginas
             frames[min_idx] = pag;
             ultimo_acesso[min_idx] = t;
+
+            tabelas_paginas[id_proc][num_pag].presente = true;
+            tabelas_paginas[id_proc][num_pag].frame_fisico = min_idx;
         }
     }
 
@@ -193,24 +246,40 @@ int simular_otimo(int num_frames, int tamanho_pagina_mb,
     std::vector<Pagina> referencias = gerar_referencias_pagina(processos, linha_tempo, tamanho_pagina_mb);
     if (num_frames <= 0 || referencias.empty()) return 0;
 
+    // Inicializa a Tabela de Páginas de cada processo com o tamanho adequado (Demand Paging)
+    std::unordered_map<int, std::vector<EntradaTabelaPagina>> tabelas_paginas;
+    for (const auto& p : processos) {
+        int num_paginas = (p.memoria_mb + tamanho_pagina_mb - 1) / tamanho_pagina_mb;
+        if (num_paginas <= 0) num_paginas = 1;
+        tabelas_paginas[p.id] = std::vector<EntradaTabelaPagina>(num_paginas);
+    }
+
     std::vector<Pagina> frames;
     int page_faults = 0;
 
     for (int t = 0; t < static_cast<int>(referencias.size()); ++t) {
         const auto& pag = referencias[t];
+        int id_proc = pag.id_processo;
+        int num_pag = pag.numero_pagina;
 
-        auto it = std::find(frames.begin(), frames.end(), pag);
-        if (it != frames.end()) {
-            continue; // Hit
+        // 1 & 2. CPU pede a página e consulta a tabela de páginas
+        if (tabelas_paginas[id_proc][num_pag].presente) {
+            // 3. Hit! No Ótimo, não precisa fazer nada especial
+            continue;
         }
 
-        // Ocorreu um Page Fault!
+        // 4. Se presente for false, ocorreu um Page Fault
         page_faults++;
 
+        // 5. Se houver espaço livre na RAM, aloque a página em um frame vazio
         if (frames.size() < static_cast<size_t>(num_frames)) {
+            int frame_idx = static_cast<int>(frames.size());
             frames.push_back(pag);
+
+            tabelas_paginas[id_proc][num_pag].presente = true;
+            tabelas_paginas[id_proc][num_pag].frame_fisico = frame_idx;
         } else {
-            // Procura o frame com a página que demorará mais tempo para ser usada no futuro (ou nunca mais será)
+            // 6 & 7. RAM cheia: roda o algoritmo Ótimo para escolher página vítima
             int idx_para_substituir = -1;
             int maior_futuro = -1;
 
@@ -234,7 +303,16 @@ int simular_otimo(int num_frames, int tamanho_pagina_mb,
 
             // Substitui a página ótima escolhida
             if (idx_para_substituir != -1) {
+                Pagina antiga = frames[idx_para_substituir];
+
+                // Define presente = false e frame_fisico = -1 na tabela do dono da vítima
+                tabelas_paginas[antiga.id_processo][antiga.numero_pagina].presente = false;
+                tabelas_paginas[antiga.id_processo][antiga.numero_pagina].frame_fisico = -1;
+
+                // Insere a nova página no frame e atualiza a sua tabela de páginas
                 frames[idx_para_substituir] = pag;
+                tabelas_paginas[id_proc][num_pag].presente = true;
+                tabelas_paginas[id_proc][num_pag].frame_fisico = idx_para_substituir;
             }
         }
     }

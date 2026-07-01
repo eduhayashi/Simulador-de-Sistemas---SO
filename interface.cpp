@@ -91,6 +91,19 @@ static void ao_clicar_simular(GtkButton* botao, gpointer data) {
         return;
     }
 
+    // Calcula a soma da memória solicitada por todos os processos
+    int soma_memoria_processos = 0;
+    for (const auto& p : processos) {
+        soma_memoria_processos += p.memoria_mb;
+    }
+
+    // Se exceder o limite da Memória Virtual configurada, interrompe a simulação e mostra erro
+    if (soma_memoria_processos > mem_virtual) {
+        mostrar_mensagem(GTK_WINDOW(widgets->main_window), "Erro de Memória Virtual", 
+                         "A soma da memória dos processos excede o limite de Memória Virtual (Swap) configurado.");
+        return;
+    }
+
     int num_frames = mem_fisica / tam_pagina;
     if (num_frames <= 0) {
         mostrar_mensagem(GTK_WINDOW(widgets->main_window), "Erro de Memória", "O tamanho da página excede a capacidade total da memória física!");
