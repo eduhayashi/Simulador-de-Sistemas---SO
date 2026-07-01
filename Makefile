@@ -30,6 +30,6 @@ $(TARGET): $(OBJS)
 # Regra para limpar arquivos temporários de compilação
 clean:
 	@echo Limpando arquivos objeto e executavel...
-	@del /q /f $(OBJS) $(TARGET) $(TARGET).exe 2>nul || rm -f $(OBJS) $(TARGET) $(TARGET).exe
+	@rm -f $(OBJS) $(TARGET) $(TARGET).exe 2>/dev/null || del /q /f $(OBJS) $(TARGET) $(TARGET).exe 2>nul
 
 .PHONY: all clean

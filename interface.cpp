@@ -97,6 +97,10 @@ static void ao_clicar_simular(GtkButton* botao, gpointer data) {
         return;
     }
 
+    std::cout << "[DEBUG] Memoria Fisica: " << mem_fisica 
+              << " | Pagina: " << tam_pagina 
+              << " | Frames: " << num_frames << std::endl;
+
     // 4. Executar escalonador
     gchar* esc_sel = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(widgets->combo_escalonador));
     std::string algoritmo_cpu = (esc_sel != nullptr) ? esc_sel : "";
@@ -141,6 +145,9 @@ static void ao_clicar_simular(GtkButton* botao, gpointer data) {
         mostrar_mensagem(GTK_WINDOW(widgets->main_window), "Erro de Memória", "Política de substituição de páginas desconhecida.");
         return;
     }
+
+    std::cout << "[DEBUG] Politica: " << politica_paginas 
+              << " | Page Faults: " << page_faults << std::endl;
 
     // 6. Gerar e exibir relatório na área de texto
     std::string relatorio_txt = gerar_relatorio_string(processos, linha_tempo, page_faults);
